@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Secrets — NEVER commit these
+.env
+secrets.json
+
+# Runtime data — generated while the bot runs
+trades_*.csv
+logs/
+reports/
+live_state_*.json
+daytraderbot.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Playwright temp files and screenshots
+.playwright-mcp/
+*.png
+*.jpg
