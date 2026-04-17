@@ -1,0 +1,133 @@
+{
+  "_comment": "Set mode to 'paper' to simulate trades with fake money. Change to 'live' only after backtesting looks good.",
+  "mode": "paper",
+
+  "exchange": "kraken",
+  "api_key": "",
+  "api_secret": "",
+
+  "strategy": "ma_ribbon",
+  "_symbol_comment": "Top recommended Kraken pairs for bots: BTC/USDT, ETH/USDT, SOL/USDT, ADA/USDT",
+  "fleet": ["BTC/USDT", "ETH/USDT", "SOL/USDT", "ADA/USDT"],
+  "overrides": {},
+  "timeframe": "1h",
+  "starting_balance": 20.0,
+
+  "fee_rate": 0.0026,
+
+  "_sizing_comment": "risk_per_trade_pct = fraction of total wallet to risk per trade (1% = 0.01). The bot sizes each position so that if the stop fires, it only loses this much.",
+  "risk_per_trade_pct": 0.01,
+
+  "_slippage_comment": "backtest_slippage_pct = simulated market-order slippage in compare_strategies.py. 0.0005 = 0.05% per trade, a conservative Kraken estimate.",
+  "backtest_slippage_pct": 0.0005,
+  "stop_multiplier": 2.5,
+
+  "_eval_comment": "Evaluator thresholds — how strict the nightly strategy rotation is.",
+  "eval_min_sharpe_improvement": 0.3,
+  "eval_min_trades": 5,
+  "eval_cooldown_days": 3,
+
+  "_risk_comment": "Live trading kill-switches. If either limit is hit, the bot stops opening new positions for that coin and sends a Telegram alert.",
+  "max_daily_loss_pct": 5.0,
+  "max_drawdown_pct": 20.0,
+
+  "rsi": {
+    "period": 14,
+    "buy_below": 30,
+    "sell_above": 70,
+    "trade_pct": 0.95
+  },
+
+  "bb_rsi": {
+    "rsi_period": 14,
+    "buy_below": 30,
+    "sell_above": 70,
+    "bb_period": 20,
+    "bb_std": 2.0,
+    "trade_pct": 0.95
+  },
+
+  "macd": {
+    "window_slow": 26,
+    "window_fast": 12,
+    "window_sign": 9,
+    "trade_pct": 0.95
+  },
+
+  "stoch_rsi": {
+    "period": 14,
+    "smooth1": 3,
+    "smooth2": 3,
+    "buy_level": 0.20,
+    "sell_level": 0.80,
+    "trade_pct": 0.95
+  },
+
+  "multi_rsi": {
+    "period": 14,
+    "buy_below": 30,
+    "sell_above": 70,
+    "higher_timeframe": "4h",
+    "trade_pct": 0.95
+  },
+
+  "supertrend": {
+    "period": 10,
+    "multiplier": 3.0,
+    "trade_pct": 0.95
+  },
+
+  "trend_rsi": {
+    "period": 14,
+    "buy_below": 30,
+    "sell_above": 70,
+    "ema_period": 50,
+    "trade_pct": 0.95
+  },
+
+  "vwap": {
+    "period": 14,
+    "dev_multiplier": 1.5,
+    "trade_pct": 0.95
+  },
+
+  "ma_ribbon": {
+    "ema1": 5,
+    "ema2": 21,
+    "ema3": 55,
+    "ema4": 144,
+    "sma1": 100,
+    "sma2": 200,
+    "trade_pct": 0.95
+  },
+
+  "demark": {
+    "setup_length": 9,
+    "offset": 4,
+    "trade_pct": 0.95
+  },
+
+  "fib_retrace": {
+    "window": 100,
+    "buy_level": 0.382,
+    "sell_level": 1.272,
+    "threshold_pct": 0.005,
+    "trade_pct": 0.95
+  },
+
+  "combined": {
+    "strategies": ["rsi", "macd"],
+    "threshold": 2,
+    "trade_pct": 0.95
+  },
+
+  "grid": {
+    "lower_price": 80000,
+    "upper_price": 100000,
+    "levels": 10,
+    "amount_per_grid": 2.0
+  },
+
+  "telegram_token": "",
+  "telegram_chat_id": ""
+}

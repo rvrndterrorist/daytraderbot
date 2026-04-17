@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DayTrader Bot — Live Dashboard</title>
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+  :root {
+    --bg: #0d1117; --bg2: #161b22; --bg3: #1c2333; --border: #30363d;
+    --text: #e6edf3; --muted: #8b949e;
+    --green: #3fb950; --red: #f85149; --blue: #58a6ff; --yellow: #e3b341;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: monospace; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* ── Top Bar ── */
+  #topbar {
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 20px; background: var(--bg2); border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .brand { font-size: 15px; font-weight: bold; color: var(--blue); }
+  .paper-badge {
+    background: rgba(227,179,65,0.15); color: var(--yellow);
+    border: 1px solid var(--yellow); border-radius: 4px;
+    padding: 2px 8px; font-size: 11px; font-weight: bold; letter-spacing: 0.5px;
+  }
+  #last-update { margin-left: auto; color: var(--muted); font-size: 11px; }
+
+  /* ── Grid ── */
+  #fleet-container {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+    gap: 15px; padding: 15px; overflow-y: auto;
+  }
+
+  /* ── Card shell ── */
+  .coin-card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 8px; display: flex; flex-direction: column;
+    height: 780px; overflow: hidden;
+  }
+
+  /* ── Card header: symbol + price ── */
+  .card-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 12px; background: var(--bg3); border-bottom: 1px solid var(--border);
+  }
+  .card-title { font-size: 16px; font-weight: bold; color: var(--text); }
+  .card-price { font-size: 16px; color: var(--green); font-weight: bold; }
+
+  /* ── Strategy name row ── */
+  .card-strategy {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 4px 12px; font-size: 11px; color: var(--muted);
+    border-bottom: 1px solid var(--border); background: var(--bg2);
+  }
+  .strategy-name { color: var(--blue); font-weight: bold; }
+  .indicator-reading { color: var(--text); }
+
+  /* ── Signal bar ── */
+  .card-signal {
+    padding: 6px 12px; font-weight: bold; font-size: 13px;
+    border-bottom: 1px solid var(--border); line-height: 1.3;
+  }
+  .card-signal.buy  { color: var(--green); background: rgba(63,185,80,0.1); }
+  .card-signal.sell { color: var(--red);   background: rgba(248,81,73,0.1); }
+  .card-signal.stop { color: var(--red);   background: rgba(248,81,73,0.18); }
+  .card-signal.hold { color: var(--muted); }
+
+  /* ── Regime + Stop row ── */
+  .card-regime-stop {
+    display: flex; justify-content: space-between;
+    padding: 4px 12px; font-size: 11px; border-bottom: 1px solid var(--border);
+    background: var(--bg3);
+  }
+
+  /* ── Explanation box ── */
+  .explanation-box {
+    padding: 8px 12px; font-size: 11px; color: #a8c0e0;
+    background: #0d1117; border-bottom: 1px solid var(--border);
+    font-family: sans-serif; line-height: 1.45;
+    max-height: 70px; overflow: hidden;
+  }
+
+  /* ── Candle chart ── */
+  .chart-container { flex: 1; min-height: 200px; border-bottom: 1px solid var(--border); }
+
+  /* ── PnL bar ── */
+  .card-pnl {
+    padding: 6px 12px; font-weight: bold; font-size: 12px;
+    border-bottom: 1px solid var(--border); background: var(--bg3);
+    line-height: 1.4;
+  }
+  .pnl-pos { color: var(--green); }
+  .pnl-neg { color: var(--red); }
+
+  /* ── Activity log ── */
+  .log-label { padding: 3px 8px; font-size: 10px; color: var(--muted); background: var(--bg3); border-bottom: 1px solid var(--border); }
+  .logs-container {
+    height: 110px; overflow-y: auto; font-size: 10px;
+    background: #0d1117; padding: 4px 8px;
+  }
+  .log-line { margin-bottom: 3px; color: var(--muted); }
+  .log-line span { color: var(--text); }
+
+  /* ── Trade history ── */
+  .trades-label { padding: 3px 8px; font-size: 10px; color: var(--muted); background: var(--bg3); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .trades-container {
+    height: 80px; overflow-y: auto; font-size: 11px;
+    background: var(--bg2); padding: 4px 8px;
+  }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <div class="brand">DayTrader Bot</div>
+  <div class="paper-badge">PAPER TRADING — PRETEND MONEY</div>
+  <div id="last-update">Waiting for bot...</div>
+</div>
+
+<div id="fleet-container">
+  <!-- Cards are built dynamically below -->
+</div>
+
+<script>
+
+  // ── Human-readable strategy names ──────────────────────────────────────────
+  const STRATEGY_NAMES = {
+    rsi:         "RSI — Buy Oversold / Sell Overbought",
+    bb_rsi:      "Bollinger Bands + RSI",
+    macd:        "MACD — Momentum Crossover",
+    stoch_rsi:   "Stochastic RSI",
+    multi_rsi:   "Multi-Timeframe RSI",
+    trend_rsi:   "Trend-Filtered RSI",
+    supertrend:  "Supertrend — Volatility Band",
+    vwap:        "VWAP — Fair Value Reversion",
+    ma_ribbon:   "Moving Average Ribbon",
+    demark:      "DeMark TD — Exhaustion Counter",
+    fib_retrace: "Fibonacci Retracement Levels",
+    combined:    "Combined Signals (Voting)",
+    grid:        "Grid Trading",
+  };
+
+  // ── Plain-English explanations ─────────────────────────────────────────────
+  function buildExplanation(strategy, infoStr) {
+    if (!infoStr) return "Starting up — the bot is loading price history and calculating its indicators. This takes about 10 seconds.";
+    const info = infoStr.toUpperCase();
+
+    if (strategy === "ma_ribbon") {
+      // Extract EMA values if present: "Ribbon 5=94200 / 21=93100"
+      let vals = "";
+      const m = infoStr.match(/5=([\d,.]+)\s*\/\s*21=([\d,.]+)/i);
+      if (m) vals = ` Fast trendline: $${m[1]} — Slow trendline: $${m[2]}.`;
+      return `<b>Moving Average Ribbon:</b> The bot watches 6 trend lines drawn at different speeds. It only buys when ALL of them are pointing up AND stacked in order — like traffic all moving the same direction.${vals} When the fast line drops below the slower ones, it sells immediately.`;
+    }
+
+    if (strategy === "supertrend") {
+      const m = infoStr.match(/\$([\d,]+(?:\.\d+)?)\s*\(([UD])\)/i);
+      let dir = "", lvl = "";
+      if (m) { lvl = ` Band is at $${m[1]}.`; dir = m[2].toUpperCase() === "U" ? " Market is currently ABOVE the band (bot is looking to buy / holding)." : " Market is BELOW the band (bot is looking to sell / not in a position)."; }
+      return `<b>Supertrend:</b> Draws a volatility "floor" or "ceiling" around the price.${lvl}${dir} If the price closes on the wrong side of the band, the bot exits the trade to stop the bleeding.`;
+    }
+
+    if (strategy === "vwap") {
+      const m = infoStr.match(/\$([\d,]+(?:\.\d+)?)/);
+      let lvl = m ? ` Fair value is currently $${m[1]}.` : "";
+      return `<b>VWAP (Fair Value):</b>${lvl} VWAP is the true average price after accounting for how many coins actually traded at each price level. The bot's theory: if price falls far below fair value, it's an overreaction and will bounce back. It buys the extreme dip and sells when price returns to fair value.`;
+    }
+
+    if (strategy === "demark") {
+      const m = info.match(/SETUP=\s*(\d+)/);
+      const count = m ? parseInt(m[1]) : 0;
+      const bar = `<b style="color:${count >= 7 ? '#e3b341' : 'inherit'}">${count} / 9</b>`;
+      if (count === 9) return `<b>DeMark TD Sequential:</b> Counter: ${bar} — <b style="color:#f85149">EXHAUSTION REACHED.</b> The trend has been running for exactly 9 consecutive candles, which historically signals a reversal. The bot is acting now.`;
+      return `<b>DeMark TD Sequential:</b> Counter: ${bar}. This counts how many candles in a row price has closed higher (or lower) than 4 candles ago. At exactly 9, the trend is considered "exhausted" and likely to reverse. The bot sits on its hands until the counter hits 9.`;
+    }
+
+    if (strategy === "fib_retrace") {
+      const bm = infoStr.match(/B=\$([\d,]+)/i);
+      const sm = infoStr.match(/S=\$([\d,]+)/i);
+      const buyStr  = bm ? ` Buy zone: $${bm[1]}` : "";
+      const sellStr = sm ? ` — Sell zone: $${sm[1]}` : "";
+      return `<b>Fibonacci Levels:</b>${buyStr}${sellStr}. The bot finds the highest and lowest price over the last 100 candles, then draws invisible "gravity lines" at mathematical ratios (38.2%, 61.8%, 127.2%). Price tends to pause or bounce at these levels. It does nothing until the price physically touches one of them.`;
+    }
+
+    if (strategy === "macd") {
+      const mm = infoStr.match(/MACD=([-\d.]+)/i);
+      const sm = infoStr.match(/SIG=([-\d.]+)/i);
+      let reading = (mm && sm) ? ` MACD: ${mm[1]} | Signal: ${sm[1]}.` : "";
+      return `<b>MACD Crossover:</b>${reading} Tracks a fast and a slow moving average of price. When the fast line crosses above the slow line, momentum is turning upward (buy). When it crosses below, momentum is dying (sell). Like two speedometers — one reacts quickly, one slowly. When the fast one overtakes the slow one, the bot acts.`;
+    }
+
+    if (strategy === "stoch_rsi") {
+      const m = infoStr.match(/STOCHRSI=([\d.]+)/i);
+      let val = m ? ` Current: ${m[1]} (0–1 scale, below 0.20 = oversold, above 0.80 = overbought).` : "";
+      return `<b>Stochastic RSI:</b>${val} A turbo-charged version of RSI — it measures RSI's momentum on top of price's momentum. More sensitive and faster-acting than plain RSI. Buys when it crosses up through the oversold zone, sells when it crosses down from overbought.`;
+    }
+
+    if (strategy === "multi_rsi" || strategy === "trend_rsi" || strategy.includes("rsi")) {
+      const m = infoStr.match(/RSI=([\d.]+)/i);
+      let val = m ? ` RSI is currently <b>${m[1]}</b>.` : "";
+      let desc = "";
+      if (strategy === "trend_rsi") desc = " This version only buys if price is also above its 50-period trend line — adds a filter so you don't buy into a falling knife.";
+      if (strategy === "multi_rsi") desc = " This version checks RSI on both the 1-hour AND 4-hour chart — both must agree before buying, reducing false signals.";
+      return `<b>RSI (Relative Strength Index):</b>${val} Measures how aggressively the coin has been bought or sold, on a scale of 0–100.${desc} Below 30 = price has been beaten down unfairly (buy). Above 70 = price has been pumped too hard (sell). Think of it as a rubber band — the more stretched, the harder it snaps back.`;
+    }
+
+    if (strategy === "grid") {
+      return `<b>Grid Trading:</b> The bot has divided a price range into equal steps (like a ladder). It automatically buys one rung when price drops down through it, and sells when price climbs back up through it. Profits from the coin bouncing up and down — doesn't care about direction, just movement.`;
+    }
+
+    if (strategy === "combined") {
+      return `<b>Combined Signals:</b> This bot runs two or more strategies at the same time and only acts when they agree. Like getting a second opinion — if both say buy, it buys. If they disagree, it does nothing. Reduces false signals.`;
+    }
+
+    return `<b>Bot is active.</b> Current reading: ${infoStr}. Waiting for its mathematical conditions to be met before acting.`;
+  }
+
+  // ── Signal bar text ────────────────────────────────────────────────────────
+  function signalText(signal) {
+    if (signal === "buy")  return "BUYING — Bot is entering a position right now";
+    if (signal === "sell") return "SELLING — Bot is closing its position and taking profit/loss";
+    if (signal === "stop") return "STOP LOSS HIT — Price dropped too far. Auto-sold to protect capital";
+    return "WATCHING — No action this candle. Conditions not met yet.";
+  }
+
+  // ── Regime plain English ──────────────────────────────────────────────────
+  function regimeText(regime, adx) {
+    if (!regime || regime === "unknown") return { text: "Reading market structure...", color: "var(--muted)" };
+    const adxStr = adx ? ` (ADX: ${adx})` : "";
+    if (regime === "trending") return {
+      text: `TRENDING${adxStr} — Market has clear direction. Using trend-following logic.`,
+      color: "var(--blue)"
+    };
+    return {
+      text: `RANGING${adxStr} — Market moving sideways. Using buy-the-dip logic.`,
+      color: "var(--green)"
+    };
+  }
+
+  // ── Stop plain English ────────────────────────────────────────────────────
+  function stopText(stop_price) {
+    if (!stop_price) return { text: "No position open — no safety net needed", color: "var(--muted)" };
+    return {
+      text: `Safety net: auto-sell if price drops to $${parseFloat(stop_price).toLocaleString()}`,
+      color: "var(--red)"
+    };
+  }
+
+
+  // ── WebSocket + card rendering ─────────────────────────────────────────────
+  const ws = new WebSocket(`ws://${window.location.host}/ws`);
+  const charts = {};
+  const series = {};
+  const container = document.getElementById("fleet-container");
+
+  function createCard(symbol) {
+    const safeId = symbol.replace("/", "-");
+    const div = document.createElement("div");
+    div.className = "coin-card";
+    div.id = `card-${safeId}`;
+
+    div.innerHTML = `
+      <div class="card-header">
+        <div class="card-title">${symbol}</div>
+        <div class="card-price" id="price-${safeId}">—</div>
+      </div>
+      <div class="card-strategy">
+        <span>Strategy: <span class="strategy-name" id="strat-${safeId}">Loading...</span></span>
+        <span class="indicator-reading" id="indicator-${safeId}"></span>
+      </div>
+      <div class="card-signal hold" id="signal-${safeId}">WATCHING — Waiting for first data...</div>
+      <div class="card-regime-stop">
+        <span id="regime-${safeId}" style="color:var(--muted); font-size:11px;">Reading market structure...</span>
+        <span id="stop-${safeId}"   style="color:var(--muted); font-size:11px;">No position open</span>
+      </div>
+      <div class="explanation-box" id="explain-${safeId}">Loading strategy explanation...</div>
+
+      <div class="chart-container" id="chart-${safeId}"></div>
+
+      <div class="card-pnl" id="pnl-${safeId}">Pretend wallet: loading...</div>
+
+      <div class="log-label">Bot activity log (newest first):</div>
+      <div class="logs-container" id="logs-${safeId}"></div>
+
+      <div class="trades-label">Trades taken this session:</div>
+      <div class="trades-container" id="trades-${safeId}">
+        <div style="color:var(--muted)">No trades yet — bot is watching...</div>
+      </div>
+    `;
+    container.appendChild(div);
+
+    const chart = LightweightCharts.createChart(document.getElementById(`chart-${safeId}`), {
+      layout: { background: { type: "solid", color: "transparent" }, textColor: "#8b949e" },
+      grid: { vertLines: { color: "#30363d" }, horzLines: { color: "#30363d" } },
+      timeScale: { timeVisible: true, borderVisible: false },
+      rightPriceScale: { borderVisible: false },
+    });
+    const candleSeries = chart.addCandlestickSeries({
+      upColor: "#3fb950", downColor: "#f85149",
+      borderVisible: false, wickUpColor: "#3fb950", wickDownColor: "#f85149",
+    });
+    charts[symbol] = chart;
+    series[symbol] = candleSeries;
+
+    new ResizeObserver(() => {
+      const el = document.getElementById(`chart-${safeId}`);
+      if (el && el.clientWidth > 0) chart.resize(el.clientWidth, el.clientHeight);
+    }).observe(div);
+  }
+
+  ws.onmessage = (evt) => {
+    document.getElementById("last-update").innerText = "Last update: " + new Date().toLocaleTimeString();
+    try {
+      const payload = JSON.parse(evt.data);
+      if (!payload.fleet) return;
+
+      payload.fleet.forEach(coin => {
+        const safeId = coin.symbol.replace("/", "-");
+        if (!charts[coin.symbol]) createCard(coin.symbol);
+
+        // Price
+        document.getElementById(`price-${safeId}`).innerText =
+          coin.current_price ? "$" + parseFloat(coin.current_price).toLocaleString() : "—";
+
+        // Strategy name
+        document.getElementById(`strat-${safeId}`).innerText =
+          STRATEGY_NAMES[coin.strategy] || coin.strategy.toUpperCase();
+
+        // Indicator reading (raw value, right side of strategy row)
+        document.getElementById(`indicator-${safeId}`).innerText = coin.grid_info || "";
+
+        // Signal bar
+        const sigEl = document.getElementById(`signal-${safeId}`);
+        const sig = (coin.signal || "hold").toLowerCase();
+        sigEl.innerText = signalText(sig);
+        sigEl.className = "card-signal " + (["buy","sell","stop"].includes(sig) ? sig : "hold");
+
+        // Regime
+        const rEl = document.getElementById(`regime-${safeId}`);
+        const r = regimeText(coin.regime, coin.adx);
+        rEl.innerText = r.text;
+        rEl.style.color = r.color;
+
+        // Stop
+        const sEl = document.getElementById(`stop-${safeId}`);
+        const s = stopText(coin.stop_price);
+        sEl.innerText = s.text;
+        sEl.style.color = s.color;
+
+        // Explanation
+        document.getElementById(`explain-${safeId}`).innerHTML =
+          buildExplanation(coin.strategy, coin.grid_info);
+
+        // PnL bar
+        const pnlEl = document.getElementById(`pnl-${safeId}`);
+        const sign = coin.pnl_usd >= 0 ? "+" : "";
+        const pnlColor = coin.pnl_usd >= 0 ? "var(--green)" : "var(--red)";
+        pnlEl.innerHTML =
+          `Pretend wallet: <b>$${parseFloat(coin.total_value || 0).toFixed(2)}</b>` +
+          ` &nbsp;|&nbsp; Started with: $${parseFloat(coin.starting_balance || 0).toFixed(2)}` +
+          ` &nbsp;|&nbsp; <span style="color:${pnlColor}">${sign}$${parseFloat(coin.pnl_usd || 0).toFixed(2)} (${sign}${parseFloat(coin.pnl_pct || 0).toFixed(2)}%)</span>`;
+        pnlEl.className = "card-pnl";
+
+        // Activity log
+        let logHtml = "";
+        (coin.logs || []).forEach(l => {
+          logHtml += `<div class="log-line">&rsaquo; <span>${l}</span></div>`;
+        });
+        document.getElementById(`logs-${safeId}`).innerHTML = logHtml || `<div class="log-line" style="color:var(--muted)">Waiting for first candle...</div>`;
+
+        // Trade history
+        const trades = coin.trades || [];
+        if (trades.length === 0) {
+          document.getElementById(`trades-${safeId}`).innerHTML =
+            `<div style="color:var(--muted)">No trades yet — bot is watching...</div>`;
+        } else {
+          let html = "";
+          trades.forEach(t => {
+            const action = (t.action || t.side || "?").toUpperCase();
+            const isBuy  = action === "BUY";
+            const isStop = action === "STOP";
+            const color  = isBuy ? "var(--green)" : "var(--red)";
+            const label  = isStop ? "STOP LOSS" : action;
+            const amt    = t.amount_usd ? ` — spent $${parseFloat(t.amount_usd).toFixed(2)}` : "";
+            const price  = t.price ? ` @ $${parseFloat(t.price).toLocaleString()}` : "";
+            const pnl    = (t.pnl != null && !isBuy)
+              ? ` &nbsp; <span style="color:${parseFloat(t.pnl) >= 0 ? 'var(--green)' : 'var(--red)'}">${parseFloat(t.pnl) >= 0 ? "+" : ""}$${parseFloat(t.pnl).toFixed(2)} profit/loss</span>`
+              : "";
+            const time   = t.time ? `<span style="color:var(--muted)"> ${t.time}</span>` : "";
+            html += `<div style="margin-bottom:4px;">
+              <b style="color:${color}">${label}</b>${amt}${price}${pnl}${time}
+            </div>`;
+          });
+          document.getElementById(`trades-${safeId}`).innerHTML = html;
+        }
+
+        // Candle chart
+        if (coin.candles && coin.candles.length > 0) {
+          series[coin.symbol].setData(coin.candles);
+        }
+      });
+    } catch (err) {
+      console.error("Dashboard error:", err);
+    }
+  };
+
+  ws.onerror = () => {
+    document.getElementById("last-update").innerText = "Connection lost — is the bot running?";
+  };
+</script>
+</body>
+</html>

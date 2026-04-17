@@ -1,0 +1,1 @@
+[2026-04-16 19:49:58.394296] WARNING: MA_RIBBON lost money in the test period. Auto-starting anyway to maintain headless runtime.
